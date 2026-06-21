@@ -23,11 +23,31 @@ class OperationRepository:
         return Operation.query.order_by(Operation.created_at.desc()).all()
 
     @staticmethod
+    def find_all_paginated(page: int = 1, page_size: int = 20, search: str = "") -> dict:
+        query = Operation.query
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.filter(
+                (Operation.name.ilike(search_pattern)) |
+                (Operation.operation_number.ilike(search_pattern))
+            )
+        query = query.order_by(Operation.created_at.desc())
+        pagination = query.paginate(page=page, per_page=page_size, error_out=False)
+        return {
+            "items": pagination.items,
+            "page": pagination.page,
+            "page_size": pagination.per_page,
+            "total": pagination.total,
+            "pages": pagination.pages
+        }
+
+    @staticmethod
     def find_by_id(operation_id: int) -> Optional[Operation]:
         return Operation.query.get(operation_id)
 
     @staticmethod
     def create(data: dict) -> Operation:
+        from datetime import datetime
         try:
             operation = Operation(
                 name=data["name"],
@@ -37,6 +57,10 @@ class OperationRepository:
             )
             db.session.add(operation)
             db.session.flush()  # obtain the operation.id before adding children
+
+            # Generate automatically operation_number
+            year = datetime.utcnow().year
+            operation.operation_number = f"000{operation.id}{year}"
 
             OperationRepository._add_related_entities(operation, data)
 
@@ -87,24 +111,48 @@ class OperationRepository:
     @staticmethod
     def _add_related_entities(operation: Operation, data: dict) -> None:
         """Persist weapons, vehicles, roles and equipments linked to the operation."""
-        for weapon_name in data.get("weapons", []):
-            db.session.add(Weapon(name=weapon_name.lower(), operation_id=operation.id))
+        import json
 
-        for vehicle_data in data.get("vehicles", []):
+        for w in data.get("weapons", []):
+            name = w.get("weapon", "").lower()
+            qty = int(w.get("quantity", 1))
+            db.session.add(Weapon(name=name, quantity=qty, operation_id=operation.id))
+
+        for v in data.get("vehicles", []):
+            brand = v.get("brand", "")
+            model = v.get("model", "")
+            plate = v.get("plate", "").upper()
+            armored = bool(v.get("armored", False))
             db.session.add(
                 Vehicle(
-                    name=vehicle_data.get("name", ""),
-                    armored=bool(vehicle_data.get("armored", False)),
+                    brand=brand,
+                    model=model,
+                    plate=plate,
+                    armored=armored,
                     operation_id=operation.id,
                 )
             )
 
-        for role_name in data.get("roles", []):
-            db.session.add(Role(name=role_name.lower(), operation_id=operation.id))
+        for r in data.get("roles", []):
+            name = r.get("role", "").lower()
+            qty = int(r.get("quantity", 1))
+            officers_list = r.get("officers", [])
+            db.session.add(
+                Role(
+                    name=name,
+                    quantity=qty,
+                    officers=json.dumps(officers_list),
+                    operation_id=operation.id,
+                )
+            )
 
-        for equip_name in data.get("investigation_equipments", []):
+        for e in data.get("investigation_equipments", []):
+            name = e.get("equipment", "").lower()
+            qty = int(e.get("quantity", 1))
             db.session.add(
                 InvestigationEquipment(
-                    name=equip_name.lower(), operation_id=operation.id
+                    name=name,
+                    quantity=qty,
+                    operation_id=operation.id,
                 )
             )

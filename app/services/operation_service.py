@@ -20,9 +20,15 @@ class OperationService:
     def __init__(self) -> None:
         self.repository = OperationRepository()
 
-    def get_all_operations(self) -> list[dict]:
-        operations = OperationRepository.find_all()
-        return [op.to_dict() for op in operations]
+    def get_all_operations(self, page: int = 1, page_size: int = 20, search: str = "") -> dict:
+        result = OperationRepository.find_all_paginated(page, page_size, search)
+        return {
+            "items": [op.to_dict() for op in result["items"]],
+            "page": result["page"],
+            "page_size": result["page_size"],
+            "total": result["total"],
+            "pages": result["pages"]
+        }
 
     def get_operation_by_id(self, operation_id: int) -> dict:
         operation = OperationRepository.find_by_id(operation_id)

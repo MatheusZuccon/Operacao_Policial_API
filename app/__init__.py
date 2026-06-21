@@ -167,7 +167,66 @@ def create_app() -> Flask:
     # Global error handlers
     _register_error_handlers(app)
 
+    # Migrate legacy data on startup
+    backfill_legacy_data(app)
+
     return app
+
+
+def backfill_legacy_data(app) -> None:
+    """Backfills legacy database records to conform to the new database schema requirements."""
+    with app.app_context():
+        from app.database.connection import db
+        from app.entities.operation import Operation
+        from app.entities.weapon import Weapon
+        from app.entities.vehicle import Vehicle
+        from app.entities.role import Role
+        from app.entities.investigation_equipment import InvestigationEquipment
+        import json
+
+        try:
+            # 1. Backfill Operations (operation_number)
+            ops = Operation.query.filter(Operation.operation_number == None).all()
+            for op in ops:
+                year = op.created_at.year if op.created_at else 2026
+                op.operation_number = f"000{op.id}{year}"
+
+            # 2. Backfill Weapons (quantity)
+            weapons = Weapon.query.filter(Weapon.quantity == None).all()
+            for w in weapons:
+                w.quantity = 1
+
+            # 3. Backfill Investigation Equipments (quantity)
+            equips = InvestigationEquipment.query.filter(InvestigationEquipment.quantity == None).all()
+            for eq in equips:
+                eq.quantity = 1
+
+            # 4. Backfill Vehicles (brand, model, plate)
+            vehicles = Vehicle.query.all()
+            for v in vehicles:
+                if v.brand is None:
+                    v.brand = ""
+                if v.model is None:
+                    v.model = v.name if v.name else ""
+                if v.plate is None:
+                    v.plate = ""
+
+            # 5. Backfill Roles (quantity, officers)
+            roles = Role.query.all()
+            for r in roles:
+                if r.officers is None:
+                    r.officers = json.dumps(["Policial Legado"])
+                if r.quantity is None:
+                    try:
+                        officers_list = json.loads(r.officers)
+                        r.quantity = len(officers_list)
+                    except Exception:
+                        r.quantity = 1
+
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Erro ao migrar dados legados: {str(e)}")
 
 
 def _register_error_handlers(app: Flask) -> None:

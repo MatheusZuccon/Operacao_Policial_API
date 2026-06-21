@@ -83,6 +83,7 @@ def generate_operation_pdf(operation) -> BytesIO:
     operation_type_label = OPERATION_TYPE_LABELS.get(operation.operation_type, operation.operation_type)
     info_data = [
         ["ID da Operação", str(operation.id)],
+        ["Número da Operação", operation.operation_number or "—"],
         ["Nome", operation.name],
         ["Tipo", operation_type_label],
         ["Localização", operation.location],
@@ -121,9 +122,26 @@ def generate_operation_pdf(operation) -> BytesIO:
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#aaaaaa")))
     elements.append(Spacer(1, 0.2 * cm))
     if operation.weapons:
-        weapon_names = [w.name.capitalize() for w in operation.weapons]
-        for i, name in enumerate(weapon_names, start=1):
-            elements.append(Paragraph(f"  {i}. {name}", body_style))
+        weapons_data = [["Armamento", "Quantidade"]]
+        for w in operation.weapons:
+            qty = w.quantity if w.quantity is not None else 1
+            weapons_data.append([w.name.capitalize(), str(qty)])
+        weapons_table = Table(weapons_data, colWidths=[10 * cm, 7 * cm])
+        weapons_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f5f5")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 10),
+                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("PADDING", (0, 0), (-1, -1), 6),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+                ]
+            )
+        )
+        elements.append(weapons_table)
     else:
         elements.append(Paragraph("Nenhum armamento registrado.", label_style))
 
@@ -132,27 +150,29 @@ def generate_operation_pdf(operation) -> BytesIO:
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#aaaaaa")))
     elements.append(Spacer(1, 0.2 * cm))
     if operation.vehicles:
-        vehicle_data = [["#", "Nome", "Blindada"]]
-        for i, v in enumerate(operation.vehicles, start=1):
-            vehicle_data.append([str(i), v.name, "Sim" if v.armored else "Não"])
-        vehicle_table = Table(vehicle_data, colWidths=[1.5 * cm, 10 * cm, 5.5 * cm])
+        vehicle_data = [["Marca", "Modelo", "Placa", "Blindada"]]
+        for v in operation.vehicles:
+            brand = v.brand if v.brand is not None else ""
+            model = v.model if v.model is not None else (v.name if v.name is not None else "")
+            plate = v.plate if v.plate is not None else ""
+            vehicle_data.append([
+                brand,
+                model,
+                plate,
+                "Sim" if v.armored else "Não"
+            ])
+        vehicle_table = Table(vehicle_data, colWidths=[4 * cm, 6 * cm, 4 * cm, 3 * cm])
         vehicle_table.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f5f5")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
                     ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                     ("FONTSIZE", (0, 0), (-1, -1), 10),
                     ("ALIGN", (0, 0), (-1, -1), "LEFT"),
                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("PADDING", (0, 0), (-1, -1), 7),
+                    ("PADDING", (0, 0), (-1, -1), 6),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
-                    (
-                        "ROWBACKGROUNDS",
-                        (0, 1),
-                        (-1, -1),
-                        [colors.white, colors.HexColor("#f5f5f5")],
-                    ),
                 ]
             )
         )
@@ -161,12 +181,45 @@ def generate_operation_pdf(operation) -> BytesIO:
         elements.append(Paragraph("Nenhuma viatura registrada.", label_style))
 
     # ── Roles ─────────────────────────────────────────────────────────────────
-    elements.append(Paragraph("Cargos / Funções", section_style))
+    elements.append(Paragraph("Cargos / Policiais", section_style))
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#aaaaaa")))
     elements.append(Spacer(1, 0.2 * cm))
     if operation.roles:
-        for i, role in enumerate(operation.roles, start=1):
-            elements.append(Paragraph(f"  {i}. {role.name.capitalize()}", body_style))
+        import json
+        roles_data = [["Cargo", "Qtd", "Policiais"]]
+        for r in operation.roles:
+            try:
+                officers_list = json.loads(r.officers) if r.officers else []
+            except Exception:
+                officers_list = []
+            
+            qty = r.quantity
+            if qty is None:
+                qty = len(officers_list) if officers_list else 1
+            if not officers_list:
+                officers_list = ["Policial Legado"]
+                
+            officers_str = ", ".join(officers_list)
+            officers_para = Paragraph(officers_str, body_style)
+            
+            roles_data.append([r.name.capitalize(), str(qty), officers_para])
+            
+        roles_table = Table(roles_data, colWidths=[4.5 * cm, 1.5 * cm, 11 * cm])
+        roles_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f5f5")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 10),
+                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("PADDING", (0, 0), (-1, -1), 6),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+                ]
+            )
+        )
+        elements.append(roles_table)
     else:
         elements.append(Paragraph("Nenhum cargo registrado.", label_style))
 
@@ -175,8 +228,26 @@ def generate_operation_pdf(operation) -> BytesIO:
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#aaaaaa")))
     elements.append(Spacer(1, 0.2 * cm))
     if operation.investigation_equipments:
-        for i, eq in enumerate(operation.investigation_equipments, start=1):
-            elements.append(Paragraph(f"  {i}. {eq.name.capitalize()}", body_style))
+        equip_data = [["Equipamento", "Quantidade"]]
+        for eq in operation.investigation_equipments:
+            qty = eq.quantity if eq.quantity is not None else 1
+            equip_data.append([eq.name.capitalize(), str(qty)])
+        equip_table = Table(equip_data, colWidths=[10 * cm, 7 * cm])
+        equip_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f5f5")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1a1a2e")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 10),
+                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("PADDING", (0, 0), (-1, -1), 6),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+                ]
+            )
+        )
+        elements.append(equip_table)
     else:
         elements.append(Paragraph("Nenhum equipamento investigativo registrado.", label_style))
 

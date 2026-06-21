@@ -8,6 +8,7 @@ class Operation(db.Model):
     __tablename__ = "operations"
 
     id: int = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    operation_number: str = db.Column(db.String(50), unique=True, nullable=True)
     name: str = db.Column(db.String(200), nullable=False)
     operation_type: str = db.Column(db.String(50), nullable=False)
     location: str = db.Column(db.String(300), nullable=False)
@@ -33,6 +34,7 @@ class Operation(db.Model):
     def to_dict(self) -> dict:
         return {
             "id": self.id,
+            "operation_number": self.operation_number,
             "name": self.name,
             "operation_type": self.operation_type,
             "location": self.location,
