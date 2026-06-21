@@ -97,17 +97,6 @@ A API estará disponível em: `http://localhost:5000`
 
 ## Configuração do banco de dados
 
-O arquivo `.env` contém:
-
-```env
-DATABASE_URL=sqlite:///police.db
-FLASK_APP=run.py
-FLASK_ENV=development
-SECRET_KEY=police-operation-secret-key-2024
-```
-
-O banco SQLite `police.db` é criado automaticamente na raiz do projeto após `flask db upgrade`.
-
 ### Comandos Flask-Migrate
 
 ```bash
