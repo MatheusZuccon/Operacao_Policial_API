@@ -58,7 +58,11 @@ SWAGGER_TEMPLATE = {
                 "name": {
                     "type": "string",
                     "example": "Operação Verão",
-                    "description": "Nome da operação policial",
+                    "description": (
+                        "Nome da operação policial. "
+                        "Mínimo 3 caracteres; deve conter ao menos uma letra. "
+                        "Máximo 150 caracteres."
+                    ),
                 },
                 "operation_type": {
                     "type": "string",
@@ -67,61 +71,150 @@ SWAGGER_TEMPLATE = {
                     "description": (
                         "Tipo de operação: "
                         "OSTENSIVE (Ostensiva), "
-                        "INVESTIGATIVE (Investigativa), "
+                        "INVESTIGATIVE (Investigativa — requer ao menos 1 viatura e a pistola com quantity >= 1), "
                         "TACTICAL (Forças Táticas e Especiais)"
                     ),
                 },
                 "location": {
                     "type": "string",
                     "example": "Petrópolis",
-                    "description": "Localização da operação",
+                    "description": (
+                        "Localização da operação. "
+                        "Mínimo 3 caracteres; deve conter ao menos uma letra. "
+                        "Máximo 150 caracteres."
+                    ),
                 },
                 "description": {
                     "type": "string",
                     "example": "Policiamento ostensivo em evento público",
-                    "description": "Descrição detalhada da operação",
+                    "description": "Descrição detalhada da operação. Máximo 500 caracteres.",
                 },
                 "weapons": {
                     "type": "array",
-                    "items": {"type": "string"},
-                    "example": ["pistola", "carabina"],
+                    "items": {"$ref": "#/definitions/WeaponInput"},
+                    "example": [
+                        {"weapon": "pistola", "quantity": 3},
+                        {"weapon": "carabina", "quantity": 1},
+                    ],
                     "description": (
-                        "Lista de armamentos. "
-                        "Operações investigativas aceitam somente 'pistola'."
+                        "Lista de armamentos com quantidade (mínimo 1, máximo 99). "
+                        "Operações investigativas aceitam somente 'pistola' — "
+                        "o campo quantity representa a quantidade de pistolas."
                     ),
                 },
                 "vehicles": {
                     "type": "array",
                     "items": {"$ref": "#/definitions/VehicleInput"},
-                    "example": [{"name": "Viatura 01", "armored": False}],
-                    "description": "Lista de viaturas",
+                    "example": [
+                        {"brand": "Ford", "model": "Ranger", "plate": "ABC1D23", "armored": False}
+                    ],
+                    "description": (
+                        "Lista de viaturas. "
+                        "OSTENSIVE: mínimo 1. "
+                        "INVESTIGATIVE: mínimo 1. "
+                        "TACTICAL: mínimo 2. "
+                        "Campos brand e model exigem mínimo 3 caracteres com ao menos uma letra."
+                    ),
                 },
                 "roles": {
                     "type": "array",
-                    "items": {"type": "string"},
-                    "example": ["soldado", "sargento"],
-                    "description": "Lista de cargos/funções",
+                    "items": {"$ref": "#/definitions/RoleInput"},
+                    "example": [
+                        {"role": "soldado", "quantity": 1, "officers": ["Carlos Silva"]}
+                    ],
+                    "description": (
+                        "Lista de cargos/funções. "
+                        "Cada policial: mínimo 3 caracteres com ao menos uma letra; máximo 150 caracteres."
+                    ),
                 },
                 "investigation_equipments": {
                     "type": "array",
-                    "items": {"type": "string"},
-                    "example": ["câmera", "gravador"],
-                    "description": "Lista de equipamentos investigativos",
+                    "items": {"$ref": "#/definitions/EquipmentInput"},
+                    "example": [
+                        {"equipment": "câmera", "quantity": 1},
+                        {"equipment": "gravador", "quantity": 2},
+                    ],
+                    "description": "Lista de equipamentos investigativos com quantidade.",
                 },
             },
         },
         "VehicleInput": {
             "type": "object",
-            "required": ["name"],
+            "required": ["brand", "model", "plate"],
             "properties": {
-                "name": {
+                "brand": {
                     "type": "string",
-                    "example": "Viatura 01",
+                    "example": "Ford",
+                    "description": "Marca da viatura. Mínimo 3 caracteres com ao menos uma letra. Máximo 20 caracteres.",
+                },
+                "model": {
+                    "type": "string",
+                    "example": "Ranger",
+                    "description": "Modelo da viatura. Mínimo 3 caracteres com ao menos uma letra. Máximo 20 caracteres.",
+                },
+                "plate": {
+                    "type": "string",
+                    "example": "ABC1D23",
+                    "description": "Placa no formato antigo (ABC1234) ou Mercosul (ABC1D23).",
                 },
                 "armored": {
                     "type": "boolean",
                     "example": False,
-                    "description": "Indica se a viatura é blindada",
+                    "description": "Indica se a viatura é blindada.",
+                },
+            },
+        },
+        "WeaponInput": {
+            "type": "object",
+            "required": ["weapon", "quantity"],
+            "properties": {
+                "weapon": {
+                    "type": "string",
+                    "example": "pistola",
+                    "description": "Nome do armamento (deve estar na lista de armamentos válidos).",
+                },
+                "quantity": {
+                    "type": "integer",
+                    "example": 2,
+                    "description": "Quantidade do armamento (mínimo 1, máximo 99). Para operações investigativas, representa a quantidade de pistolas.",
+                },
+            },
+        },
+        "RoleInput": {
+            "type": "object",
+            "required": ["role", "quantity", "officers"],
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "example": "soldado",
+                    "description": "Nome do cargo (deve estar na lista de cargos válidos).",
+                },
+                "quantity": {
+                    "type": "integer",
+                    "example": 2,
+                    "description": "Quantidade de policiais neste cargo (mínimo 1, máximo 99). Deve ser igual ao tamanho da lista officers.",
+                },
+                "officers": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "example": ["Carlos Silva", "Ana Souza"],
+                    "description": "Lista com os nomes dos policiais. Cada nome: mínimo 3 caracteres com ao menos uma letra; máximo 150 caracteres.",
+                },
+            },
+        },
+        "EquipmentInput": {
+            "type": "object",
+            "required": ["equipment", "quantity"],
+            "properties": {
+                "equipment": {
+                    "type": "string",
+                    "example": "câmera",
+                    "description": "Nome do equipamento investigativo (deve estar na lista de equipamentos válidos).",
+                },
+                "quantity": {
+                    "type": "integer",
+                    "example": 1,
+                    "description": "Quantidade do equipamento (mínimo 1, máximo 99).",
                 },
             },
         },

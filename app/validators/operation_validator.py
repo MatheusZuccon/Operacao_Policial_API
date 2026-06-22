@@ -1,5 +1,5 @@
 import re
-from typing import Any
+from typing import Any, Optional
 from app.constants.operation_types import (
     VALID_OPERATION_TYPES,
     OSTENSIVE,
@@ -17,6 +17,45 @@ class ValidationError(Exception):
     def __init__(self, message: str) -> None:
         self.message = message
         super().__init__(message)
+
+
+# Regex that matches strings containing at least one letter (accented included).
+# Rejects strings composed only of digits, spaces and/or special characters.
+_HAS_LETTER_RE = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]")
+
+
+def _validate_text_field(value: Any, field_label: str, max_length: Optional[int] = None) -> str:
+    """
+    Validate a generic text field:
+      - Must be a non-empty string.
+      - Must have at least 3 characters after stripping whitespace.
+      - Must contain at least one letter (no pure numbers / special-char strings).
+      - Optionally enforces a maximum length.
+
+    Returns the stripped string on success; raises ValidationError on failure.
+    """
+    if not value or not isinstance(value, str):
+        raise ValidationError(f"O campo '{field_label}' é obrigatório.")
+
+    stripped = value.strip()
+
+    if len(stripped) < 3:
+        raise ValidationError(
+            f"O campo '{field_label}' deve ter no mínimo 3 caracteres."
+        )
+
+    if not _HAS_LETTER_RE.search(stripped):
+        raise ValidationError(
+            f"O campo '{field_label}' não pode conter apenas números ou caracteres especiais. "
+            f"Informe um texto com ao menos uma letra."
+        )
+
+    if max_length is not None and len(stripped) > max_length:
+        raise ValidationError(
+            f"O campo '{field_label}' deve ter no máximo {max_length} caracteres."
+        )
+
+    return stripped
 
 
 class OperationValidator:
@@ -48,16 +87,22 @@ class OperationValidator:
             )
 
     @staticmethod
-    def validate_quantity(qty: Any, field_name: str) -> int:
+    def validate_quantity(qty: Any, field_name: str, min_value: int = 1) -> int:
+        """Validate an integer quantity field. Only pure numeric values are accepted."""
         if qty is None:
             raise ValidationError(f"O campo quantidade de '{field_name}' é obrigatório.")
         try:
             val = int(qty)
         except (ValueError, TypeError):
             raise ValidationError(f"A quantidade de '{field_name}' deve ser um número inteiro.")
-        
-        if val < 1 or val > 99:
-            raise ValidationError(f"A quantidade de '{field_name}' deve estar entre 1 e 99.")
+
+        if val < min_value or val > 99:
+            if min_value == 1:
+                raise ValidationError(f"A quantidade de '{field_name}' deve estar entre 1 e 99.")
+            else:
+                raise ValidationError(
+                    f"A quantidade de '{field_name}' deve estar entre {min_value} e 99."
+                )
         return val
 
     @staticmethod
@@ -95,57 +140,51 @@ class OperationValidator:
                     f"Cargo inválido: '{role}'. "
                     f"Os cargos válidos são: {valid_str}."
                 )
-            
+
             qty = item.get("quantity")
             qty_val = OperationValidator.validate_quantity(qty, f"cargo {role}")
-            
+
             officers = item.get("officers")
             if not isinstance(officers, list):
                 raise ValidationError(f"A lista de policiais para o cargo '{role}' é obrigatória e deve ser uma lista.")
-            
+
             if len(officers) != qty_val:
                 raise ValidationError(
                     f"A quantidade ({qty_val}) de policiais para o cargo '{role}' deve ser igual ao número de policiais cadastrados ({len(officers)})."
                 )
-            
+
             for officer in officers:
                 if not officer or not isinstance(officer, str) or not officer.strip():
                     raise ValidationError(f"O nome do policial no cargo '{role}' é obrigatório.")
-                if len(officer) > 150:
-                    raise ValidationError(f"O nome do policial '{officer}' no cargo '{role}' excede o limite de 150 caracteres.")
+                # Validate officer name: min 3 chars, must have a letter, max 150 chars
+                _validate_text_field(officer, f"policial no cargo '{role}'", max_length=150)
 
     @staticmethod
     def validate_vehicles(vehicles: list[dict]) -> None:
         if not isinstance(vehicles, list):
             raise ValidationError("O campo viaturas deve ser uma lista.")
-        
+
         plates = []
         for item in vehicles:
             if not isinstance(item, dict):
                 raise ValidationError("Cada viatura deve ser informada como um objeto com 'brand', 'model', 'plate' e 'armored'.")
-            
+
             brand = item.get("brand")
-            if not brand or not isinstance(brand, str) or not brand.strip():
-                raise ValidationError("A marca da viatura é obrigatória.")
-            if len(brand) > 20:
-                raise ValidationError(f"A marca da viatura '{brand}' excede o limite de 20 caracteres.")
-                
+            _validate_text_field(brand, "marca da viatura", max_length=20)
+
             model = item.get("model")
-            if not model or not isinstance(model, str) or not model.strip():
-                raise ValidationError("O modelo da viatura é obrigatório.")
-            if len(model) > 20:
-                raise ValidationError(f"O modelo da viatura '{model}' excede o limite de 20 caracteres.")
-                
+            _validate_text_field(model, "modelo da viatura", max_length=20)
+
             plate = item.get("plate")
             if not plate or not isinstance(plate, str) or not plate.strip():
                 raise ValidationError("A placa da viatura é obrigatória.")
-            
+
             plate_clean = plate.strip().upper()
             if not OperationValidator.PLATE_REGEX.match(plate_clean):
                 raise ValidationError(
                     f"A placa da viatura '{plate}' é inválida. Formatos aceitos: ABC1234 (antigo) ou ABC1D23 (Mercosul)."
                 )
-            
+
             if plate_clean in plates:
                 raise ValidationError(f"A placa '{plate_clean}' está duplicada nesta operação.")
             plates.append(plate_clean)
@@ -190,9 +229,18 @@ class OperationValidator:
 
     @staticmethod
     def validate_investigative(data: dict) -> None:
+        """
+        Investigative operations rules:
+          - Requires at least 1 pistol (weapon='pistola'), with quantity >= 1.
+          - Only 'pistola' is allowed as weapon.
+          - Requires at least 1 investigative equipment.
+          - Requires at least 1 role.
+          - Requires at least 1 vehicle (vehicle quantity >= 1).
+        """
         weapons: list[dict] = data.get("weapons", [])
         equipments: list[dict] = data.get("investigation_equipments", [])
         roles: list[dict] = data.get("roles", [])
+        vehicles: list[dict] = data.get("vehicles", [])
 
         if not weapons:
             raise ValidationError(
@@ -214,6 +262,12 @@ class OperationValidator:
         if not roles:
             raise ValidationError(
                 "Uma operação investigativa deve possuir ao menos 1 cargo."
+            )
+
+        # New rule: investigative operations require at least 1 vehicle
+        if not vehicles:
+            raise ValidationError(
+                "Uma operação investigativa deve possuir ao menos 1 viatura."
             )
 
     @staticmethod
@@ -241,16 +295,10 @@ class OperationValidator:
         cls.validate_required_fields(data)
 
         name = data.get("name", "")
-        if not name or not isinstance(name, str) or not name.strip():
-            raise ValidationError("O nome da operação é obrigatório.")
-        if len(name) > 150:
-            raise ValidationError("O nome da operação deve ter no máximo 150 caracteres.")
+        _validate_text_field(name, "nome da operação", max_length=150)
 
         location = data.get("location", "")
-        if not location or not isinstance(location, str) or not location.strip():
-            raise ValidationError("A localização é obrigatória.")
-        if len(location) > 150:
-            raise ValidationError("A localização deve ter no máximo 150 caracteres.")
+        _validate_text_field(location, "localização", max_length=150)
 
         description = data.get("description", "")
         if description and isinstance(description, str) and len(description) > 500:
