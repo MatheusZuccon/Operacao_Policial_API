@@ -23,7 +23,7 @@ class OperationRepository:
         return Operation.query.order_by(Operation.created_at.desc()).all()
 
     @staticmethod
-    def find_all_paginated(page: int = 1, page_size: int = 20, search: str = "") -> dict:
+    def find_all_paginated(page: int = 1, page_size: int = 20, search: str = "", sort_by: str = "created_at", sort_dir: str = "desc") -> dict:
         query = Operation.query
         if search:
             search_pattern = f"%{search}%"
@@ -31,7 +31,25 @@ class OperationRepository:
                 (Operation.name.ilike(search_pattern)) |
                 (Operation.operation_number.ilike(search_pattern))
             )
-        query = query.order_by(Operation.created_at.desc())
+        
+        # Map sort_by parameter to model columns
+        sort_columns = {
+            "operation_number": Operation.operation_number,
+            "name": Operation.name,
+            "operation_type": Operation.operation_type,
+            "location": Operation.location,
+            "created_at": Operation.created_at
+        }
+        
+        # Get the column to sort by, default to created_at
+        sort_column = sort_columns.get(sort_by, Operation.created_at)
+        
+        # Apply sort direction
+        if sort_dir.lower() == "asc":
+            query = query.order_by(sort_column.asc())
+        else:
+            query = query.order_by(sort_column.desc())
+            
         pagination = query.paginate(page=page, per_page=page_size, error_out=False)
         return {
             "items": pagination.items,

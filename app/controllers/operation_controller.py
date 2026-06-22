@@ -61,6 +61,8 @@ class OperationListController(Resource):
         page = request.args.get("page", 1, type=int)
         page_size = request.args.get("page_size", 20, type=int)
         search = request.args.get("search", "", type=str)
+        sort_by = request.args.get("sort_by", "created_at", type=str)
+        sort_dir = request.args.get("sort_dir", "desc", type=str)
 
         if page < 1:
             page = 1
@@ -69,7 +71,7 @@ class OperationListController(Resource):
         elif page_size > 100:
             page_size = 100
 
-        operations = self.service.get_all_operations(page=page, page_size=page_size, search=search)
+        operations = self.service.get_all_operations(page=page, page_size=page_size, search=search, sort_by=sort_by, sort_dir=sort_dir)
         return success_response("Operations retrieved successfully", operations)
 
     def post(self):
