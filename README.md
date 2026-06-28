@@ -157,7 +157,6 @@ No Swagger UI você pode:
 | Viaturas | 1 |
 | Armamentos | 1 |
 | Cargos | 1 |
-| Equipamentos investigativos | Opcional |
 
 ### INVESTIGATIVE — Operações de Polícia Judiciária e Investigativa
 
