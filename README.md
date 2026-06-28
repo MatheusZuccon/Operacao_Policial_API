@@ -155,7 +155,7 @@ No Swagger UI você pode:
 | Requisito | Mínimo |
 |-----------|--------|
 | Viaturas | 1 |
-| Armamentos | 1 |
+| Armamentos |  1 |
 | Cargos | 1 |
 
 ### INVESTIGATIVE — Operações de Polícia Judiciária e Investigativa
@@ -163,8 +163,8 @@ No Swagger UI você pode:
 | Requisito | Regra |
 |-----------|-------|
 | Armamentos | Somente `pistola` (nenhum outro aceito) |
-| Equipamentos investigativos | 1 ou mais |
-| Cargos | 1 ou mais |
+| Equipamentos investigativos | 1 |
+| Cargos | 1  |
 
 ### TACTICAL — Operações de Forças Táticas e Especiais
 
